@@ -175,6 +175,35 @@ def demonstrate_community_abstraction(data_dir: str):
     
     logger.info("=== COMMUNITY ABSTRACTION DEMONSTRATION COMPLETE ===")
 
+def _save_model_checkpoints(fed_system, output_dir: str, experiment_name: str):
+    """Save all trained model weights to disk after federated training."""
+    models_dir = os.path.join(output_dir, 'models')
+    os.makedirs(models_dir, exist_ok=True)
+
+    for detector_type, clients in fed_system.client_models.items():
+        for client_id, model in clients.items():
+            path = os.path.join(
+                models_dir,
+                f'{experiment_name}_{detector_type}_client{client_id}.pt'
+            )
+            torch.save({
+                'state_dict': model.state_dict(),
+                'detector_type': detector_type,
+                'client_id': client_id,
+                'experiment': experiment_name,
+            }, path)
+
+    if fed_system.global_model is not None:
+        path = os.path.join(models_dir, f'{experiment_name}_global_model.pt')
+        torch.save({
+            'state_dict': fed_system.global_model.state_dict(),
+            'experiment': experiment_name,
+        }, path)
+
+    saved = os.listdir(models_dir)
+    logger.info(f"Saved {len(saved)} model file(s) to {models_dir}")
+
+
 def run_federated_experiment(args, device: str) -> dict:
     """Run the main federated learning experiment"""
     logger.info("Starting FedGATSage federated learning experiment")
@@ -256,9 +285,12 @@ def run_federated_experiment(args, device: str) -> dict:
             'final_f1': evaluation_results.get('macro_f1', 0.0)
         })
     
-    # Save experiment
+    # Save experiment results (JSON)
     tracker.save_experiment(final_results)
-    
+
+    # Save model weights
+    _save_model_checkpoints(fed_system, args.output_dir, experiment_name)
+
     return final_results
 
 def evaluate_system(fed_system: FedGATSageSystem, args) -> dict:
