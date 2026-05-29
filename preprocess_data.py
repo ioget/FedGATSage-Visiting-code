@@ -123,6 +123,7 @@ def main():
 def create_dummy_dataset(filepath):
     """Create a dummy dataset for testing/demonstration"""
     logger.info(f"Generating dummy data at {filepath}")
+    os.makedirs(os.path.dirname(os.path.abspath(filepath)), exist_ok=True)
     
     # Create synthetic data resembling network traffic
     num_rows = 1000
