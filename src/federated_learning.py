@@ -382,11 +382,26 @@ class FedGATSageSystem:
         # Concatenate all flow embeddings
         global_x = torch.cat(all_embeddings, dim=0)
         global_y = torch.cat(all_labels, dim=0)
-        
-        # Create a fully connected graph for the global model (simplified)
-        # In a real scenario, we would use the community structure to define edges
+
+        # Cap nodes to avoid OOM — torch.combinations over thousands of nodes
+        # creates O(n^2) edges and exhausts GPU memory.
+        MAX_NODES = 512
         num_nodes = global_x.shape[0]
-        edge_index = torch.combinations(torch.arange(num_nodes), r=2).t().to(self.device)
+        if num_nodes > MAX_NODES:
+            perm = torch.randperm(num_nodes)[:MAX_NODES]
+            global_x = global_x[perm]
+            global_y = global_y[perm]
+            num_nodes = MAX_NODES
+
+        # Sparse k-NN random graph instead of fully connected
+        k = min(10, num_nodes - 1)
+        rows, cols = [], []
+        for i in range(num_nodes):
+            candidates = torch.randperm(num_nodes)
+            candidates = candidates[candidates != i][:k]
+            rows.extend([i] * len(candidates))
+            cols.extend(candidates.tolist())
+        edge_index = torch.tensor([rows, cols], dtype=torch.long).to(self.device)
         
         # Train global model
         self.global_model.train()
